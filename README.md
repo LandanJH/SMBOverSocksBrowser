@@ -67,7 +67,7 @@ For full Office document preview functionality, you must have LibreOffice instal
 
 The application requires two files to be in the same directory:
 ```
-    main_app.py (The main application script provided)
+    SMBOverSocksBrowser.py (The main application script provided)
 
     scanner_process.py (The dedicated scanner script provided)
 ```
@@ -84,6 +84,7 @@ Example config.json:
 }
 ```
 You can edit this file to add, remove, or modify proxy profiles. The "key" (e.g., "example1") is the name that appears in the dropdown menu, and the "value" (e.g., 1337) is the port number. The application assumes the proxy host is 127.0.0.1.
+
 4. Running the Application
 
 To run the application, simply execute the main script:
