@@ -113,6 +113,7 @@ So far this tool has only been tested using Ubuntu 24.04, the tool works great i
 
 **Works**
 - Ubunbtu 24.04
+- Kali
 
 **Issues**
 - MacOS 14.6.1
