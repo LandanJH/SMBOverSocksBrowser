@@ -91,3 +91,23 @@ To run the application, simply execute the main script:
 ```bash
 python3 SMBOverSocksBrowser.py
 ```
+
+5. Compatibility
+
+So far this tool has only been tested using Ubuntu 24.04, the tool works great in that environment but there seems to be weird issues on other OSs
+
+**Works**
+- Ubunbtu 24.04
+
+**Issues**
+- MacOS 14.6.1
+
+**Not Tested**
+- everything else...
+
+6. Possible Future Updates
+- Better Compatibility with other OSs.
+- "Reporting" ability, essentially compile files that you would like to keep track of. In the case of an penetration test, you may want to save the paths of a file so that you can put it in a report for a client.
+- Windows Binary. I've never done this but it is supposidly possible using Nuitka. Ill see if I can get this to work...
+
+## Remember that this tool is still in development, there ARE issues and hopefully ill keep track of them as I personally intend to use this for my own purposes. So please be patient as I am very new to this idea of creating tools like this.
