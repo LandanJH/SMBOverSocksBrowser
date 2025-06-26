@@ -21,7 +21,7 @@ The application is split into two main functional tabs: a **Share Browser** for 
 ### Share Browser Tab
 The Share Browser allows you to connect to and interact with a specific, known SMB share.
 
-![Browser tab with example data](https://github.com/LandanJH/SMBOverSocksBrowser/blob/main/Browser.png?raw=true)
+![Browser tab with example data](https://github.com/LandanJH/SMBOverSocksBrowser/blob/main/images/Browser.png?raw=true)
 
 - **Direct Connection:** Connect to any SMB host by providing its IP address, the share name, and credentials.
 - **File System Navigation:** Double-click on directories to navigate the share's folder structure. A `..` entry is provided to navigate back up.
@@ -42,7 +42,7 @@ The Share Browser allows you to connect to and interact with a specific, known S
 ### Subnet Scanner Tab
 The Subnet Scanner discovers active SMB hosts and their available shares across a given network range (in CIDR format, e.g., `192.168.1.0/24`).
 
-![Scanner tab with example data](https://github.com/LandanJH/SMBOverSocksBrowser/blob/main/Scanner.png?raw=true)
+![Scanner tab with example data](https://github.com/LandanJH/SMBOverSocksBrowser/blob/main/images/Scanner.png?raw=true)
 
 - **Fully Asynchronous & Non-Blocking:** The entire scanning operation is launched as a **separate process**. This guarantees the main user interface will **never freeze or become unresponsive**, even when scanning very large subnets.
 - **Two-Stage Scanning:**
