@@ -20,12 +20,12 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPushButton, QTreeView, QHeaderView, QMessageBox,
     QStatusBar, QComboBox, QHBoxLayout, QDialog, QTextEdit, QFileDialog,
-    QScrollArea, QTabWidget, QMenu, QCheckBox
+    QScrollArea, QTabWidget, QMenu, QCheckBox, QStyle
 )
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QMetaObject, Qt, Q_ARG, QPoint, QProcess
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QPixmap, QFont
 
-# We now ONLY use the pysmb library for all SMB operations
+# --- We now ONLY use the pysmb library for all SMB operations IN THE BROWSER ---
 from smb.SMBConnection import SMBConnection
 from smb import smb_structs
 from smb.base import NotConnectedError, SMBTimeout
@@ -103,17 +103,6 @@ DARK_STYLESHEET = """
         border: 1px solid #555;
     }
 """
-
-def chunks(iterator, size):
-    """Yield successive n-sized chunks from an iterator."""
-    chunk = []
-    for i, item in enumerate(iterator):
-        chunk.append(item)
-        if (i + 1) % size == 0:
-            yield chunk
-            chunk = []
-    if chunk:
-        yield chunk
 
 class ImageLabel(QLabel):
     def __init__(self, pixmap: QPixmap, parent=None):
@@ -251,7 +240,7 @@ class BrowserWorker(QObject):
         self._is_running = True
         self.is_cached = False
         self.file_path_cache = []
-
+        
     @Slot()
     def run_browser(self):
         try:
@@ -270,35 +259,32 @@ class BrowserWorker(QObject):
         except Exception as e:
             if self._is_running: self.connection_failed.emit(str(e))
     
-    # --- MODIFIED: do_search now uses the parallel cache builder ---
     @Slot(str)
     def do_search(self, keyword):
         if not self.smb_connection: return
         try:
             if not self.is_cached:
                 self.status_update.emit("First search: building file index... This may take a moment.")
+                # The cache will now store tuples of (full_path, file_size)
                 self.file_path_cache = []
-                self._build_cache_parallel() # New parallel method
+                self._build_cache_parallel()
                 self.is_cached = True
 
             self.status_update.emit(f"Searching for '{keyword}' in cache...")
-            results = [path for path in self.file_path_cache if keyword.lower() in os.path.basename(path).lower()]
+            # Search results will now be a list of tuples (path, size)
+            results = [(path, size) for path, size in self.file_path_cache if keyword.lower() in os.path.basename(path).lower()]
             self.search_finished.emit(results)
             
         except Exception as e:
             self.status_update.emit(f"Error during search: {e}")
             self.search_finished.emit([])
 
-    # --- NEW: Parallel cache building method ---
     def _build_cache_parallel(self):
         dirs_to_scan = ['/']
         with ThreadPoolExecutor(max_workers=20) as executor:
             while dirs_to_scan:
                 if not self._is_running: break
-                
-                # Create a temporary list for the next level of directories
                 next_level_dirs = []
-                
                 future_to_path = {executor.submit(self._fetch_path_contents, path): path for path in dirs_to_scan}
                 
                 for future in as_completed(future_to_path):
@@ -309,30 +295,29 @@ class BrowserWorker(QObject):
                         next_level_dirs.extend(subdirs)
                     except Exception as e:
                         print(f"Error fetching path contents during cache build: {e}")
-
                 dirs_to_scan = next_level_dirs
 
-    # --- NEW: Helper method for parallel cache building ---
     def _fetch_path_contents(self, path):
         if not self._is_running: return [], []
-        
         self.status_update.emit(f"Indexing: {path}")
         
-        # Each thread needs its own connection for thread safety
+        if self.config.get('use_proxy', True):
+            socks.set_default_proxy(socks.SOCKS5, self.config['proxy_host'], self.config['proxy_port'])
+        else:
+            socks.set_default_proxy(None)
+        socket.socket = socks.socksocket
+
         conn = SMBConnection(self.config['smb_user'], self.config['smb_pass'], f"cache-builder-{os.urandom(4).hex()}", "remote-server", use_ntlm_v2=True, is_direct_tcp=True)
         conn.connect(self.config['smb_host'], 445)
 
-        files_found = []
-        subdirs_found = []
-        
+        files_found = []; subdirs_found = []
         for item in conn.listPath(self.config['smb_share'], path):
             if item.filename in ['.', '..']: continue
             full_path = os.path.join(path, item.filename).replace('\\', '/')
             if item.isDirectory:
                 subdirs_found.append(full_path)
             else:
-                files_found.append(full_path)
-        
+                files_found.append((full_path, item.file_size))
         conn.close()
         return files_found, subdirs_found
         
@@ -355,10 +340,13 @@ class BrowserWorker(QObject):
 
     def browse_path(self, path):
         if not self.smb_connection: return []
+        results = []
         files = self.smb_connection.listPath(self.config['smb_share'], path)
-        dirs = sorted([f"[DIR] {f.filename}" for f in files if f.isDirectory and f.filename not in ['.', '..']])
-        regular_files = sorted([f.filename for f in files if not f.isDirectory])
-        return dirs + regular_files
+        dirs = sorted([f.filename for f in files if f.isDirectory and f.filename not in ['.', '..']])
+        regular_files = sorted([f for f in files if not f.isDirectory], key=lambda x: x.filename)
+        for d in dirs: results.append({'name': d, 'type': 'dir', 'size': 0})
+        for f in regular_files: results.append({'name': f.filename, 'type': 'file', 'size': f.file_size})
+        return results
 
     @Slot()
     def stop(self):
@@ -368,8 +356,6 @@ class BrowserWorker(QObject):
             except Exception: pass
 
 class SMBBrowserApp(QMainWindow):
-    # This class is unchanged, but included for completeness.
-    # All methods are collapsed for brevity.
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SMB over SOCKS Proxy Browser")
@@ -436,12 +422,15 @@ class SMBBrowserApp(QMainWindow):
         self.cancel_search_button.clicked.connect(self.stop_search); self.clear_search_button.clicked.connect(self.clear_search)
         self.search_button.setEnabled(False); self.cancel_search_button.setVisible(False); self.clear_search_button.setEnabled(False)
         self.path_label = QLabel("Current Path: /"); layout.addWidget(self.path_label)
-        self.file_tree = QTreeView(); self.file_tree.header().setSectionResizeMode(QHeaderView.Stretch)
+        self.file_tree = QTreeView()
         self.file_tree.doubleClicked.connect(self.on_item_double_clicked); layout.addWidget(self.file_tree)
-        self.model = QStandardItemModel(); self.model.setHorizontalHeaderLabels(['Name'])
+        self.model = QStandardItemModel(); self.model.setHorizontalHeaderLabels(['Name', 'Size'])
         self.file_tree.setModel(self.model); self.file_tree.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.connect_button.clicked.connect(self.start_connection); self.disconnect_button.clicked.connect(self.disconnect)
         self.preview_button.clicked.connect(self.start_preview); self.download_button.clicked.connect(self.start_download)
+        # Set initial column resize properties
+        self.file_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.file_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
     def create_scanner_tab(self):
         layout = QVBoxLayout(self.scanner_tab); grid = QGridLayout()
@@ -471,6 +460,51 @@ class SMBBrowserApp(QMainWindow):
         self.open_share_button.clicked.connect(self.open_share_in_browser)
         self.scan_results_tree.selectionModel().selectionChanged.connect(self.on_scanner_selection_changed)
 
+    # --- Helper method to get an icon based on filename extension ---
+    def get_icon_for_filename(self, filename):
+        style = QApplication.style()
+        extension = os.path.splitext(filename)[1].lower()
+        
+        # A simple map of extensions to icons
+        icon_map = {
+            # Archives
+            '.zip': QStyle.SP_DriveHDIcon,
+            '.rar': QStyle.SP_DriveHDIcon,
+            '.7z': QStyle.SP_DriveHDIcon,
+            '.tar': QStyle.SP_DriveHDIcon,
+            '.gz': QStyle.SP_DriveHDIcon,
+            # Images
+            '.png': QStyle.SP_FileDialogDetailedView,
+            '.jpg': QStyle.SP_FileDialogDetailedView,
+            '.jpeg': QStyle.SP_FileDialogDetailedView,
+            '.gif': QStyle.SP_FileDialogDetailedView,
+            '.bmp': QStyle.SP_FileDialogDetailedView,
+            # Database Files
+            '.db': QStyle.SP_DriveHDIcon,
+            '.sqlite': QStyle.SP_DriveHDIcon,
+            '.sqlite3': QStyle.SP_DriveHDIcon,
+            '.mdb': QStyle.SP_DriveHDIcon,
+            '.accdb': QStyle.SP_DriveHDIcon,
+        }
+        
+        icon_enum = icon_map.get(extension, QStyle.SP_FileIcon) # Default to a generic file icon
+        return style.standardIcon(icon_enum)
+
+    # --- UPDATED: Helper method to format file sizes for display (more compact) ---
+    def format_file_size(self, size_bytes):
+        if size_bytes is None or not isinstance(size_bytes, (int, float)) or size_bytes < 0:
+            return ""
+        if size_bytes == 0:
+            return "" # Show nothing for 0 bytes or directories
+        power = 1024
+        n = 0
+        power_labels = {0: 'B', 1: 'KB', 2: 'MB', 3: 'GB', 4: 'TB'}
+        while size_bytes >= power and n < len(power_labels) -1:
+            size_bytes /= power
+            n += 1
+        return f"{round(size_bytes)} {power_labels.get(n, 'B')}"
+
+
     @Slot()
     def start_connection(self):
         self.disconnect()
@@ -496,30 +530,41 @@ class SMBBrowserApp(QMainWindow):
         keyword = self.search_input.text()
         if not keyword: QMessageBox.information(self, "Search", "Please enter a keyword."); return
         if self.browser_worker:
-            self.search_button.setEnabled(False); self.cancel_search_button.setEnabled(True)
+            self.search_button.setEnabled(False); self.cancel_search_button.setEnabled(False)
             self.clear_search_button.setEnabled(False); self.is_in_search_mode = True
             QMetaObject.invokeMethod(self.browser_worker, 'do_search', Qt.QueuedConnection, Q_ARG(str, keyword))
     @Slot()
-    def stop_search(self):
-        if self.browser_worker: self.browser_worker.stop()
-        self.search_button.setEnabled(True); self.cancel_search_button.setEnabled(False); self.clear_search_button.setEnabled(True)
+    def stop_search(self): pass # The cancel button is now effectively disabled during search
     @Slot()
     def clear_search(self):
         self.is_in_search_mode = False; self.search_input.clear(); self.browse_path(self.current_smb_path)
+    
     @Slot(list)
     def on_search_finished(self, results):
-        self.model.clear(); self.model.setHorizontalHeaderLabels(['Search Results (Full Path)'])
+        self.model.clear(); self.model.setHorizontalHeaderLabels(['Search Result (Full Path)', 'Size'])
         if not results: self.model.appendRow(QStandardItem("No matching files found."))
         else:
-            for path in results: self.model.appendRow(QStandardItem(path))
+            for path, size in results:
+                icon = self.get_icon_for_filename(path)
+                item = QStandardItem(icon, path)
+                item.setData("file", Qt.UserRole) # Mark as file for double click
+                size_str = self.format_file_size(size)
+                size_item = QStandardItem(size_str)
+                size_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                size_item.setEditable(False)
+                item.setEditable(False)
+                self.model.appendRow([item, size_item])
         self.path_label.setText(f"Found {len(results)} results for '{self.search_input.text()}'")
         self.search_button.setEnabled(True); self.cancel_search_button.setEnabled(False); self.clear_search_button.setEnabled(True)
+        # Adjust column sizes for search results
+        self.file_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.file_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
     
     @Slot()
     def start_scan(self):
         if self.scanner_process and self.scanner_process.state() == QProcess.Running: return
         proxy_selection = self.scan_proxy_selector.currentText()
-        if not proxy_selection: QMessageBox.warning(self, "Scan Error", "No SOCKS proxy selected."); return
+        # No proxy selection check here, handled by scanner process
         self.start_scan_button.setEnabled(False); self.cancel_scan_button.setEnabled(True)
         self.scan_model.setRowCount(0); self.update_status("Starting scanner process...")
         self.scanner_buffer = ""
@@ -588,58 +633,100 @@ class SMBBrowserApp(QMainWindow):
     def disconnect(self):
         if self.browser_worker_thread and self.browser_worker_thread.isRunning():
             self.browser_worker.stop(); self.browser_worker_thread.quit(); self.browser_worker_thread.wait(3000)
-        self.browser_worker = None; self.browser_worker_thread = None; self.reset_ui()
-    def reset_ui(self):
-        self.model.clear(); self.model.setHorizontalHeaderLabels(['Name']); self.connect_button.setEnabled(True)
+        self.browser_worker = None; self.browser_worker_thread = None; self.reset_browser_ui()
+
+    def reset_browser_ui(self):
+        self.model.clear(); self.model.setHorizontalHeaderLabels(['Name', 'Size']); self.connect_button.setEnabled(True)
         self.disconnect_button.setEnabled(False); self.preview_button.setEnabled(False)
         self.download_button.setEnabled(False); self.search_button.setEnabled(False)
         self.clear_search_button.setEnabled(False); self.cancel_search_button.setVisible(False)
         self.search_button.setVisible(True); self.proxy_selector.setEnabled(True)
         self.update_status("Disconnected"); self.is_in_search_mode = False
+        self.path_label.setText("Current Path: /")
+        self.file_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.file_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+
     @Slot(str)
     def update_status(self, message): self.statusBar().showMessage(f"Status: {message}")
+
     @Slot(list)
     def on_connection_success(self, file_list):
         self.update_status("Connected successfully!"); self.disconnect_button.setEnabled(True)
         self.search_button.setEnabled(True); self.clear_search_button.setEnabled(False); self.browse_path('/')
+
     @Slot(str)
     def on_connection_failed(self, error_message):
-        QMessageBox.critical(self, "Connection Failed", error_message); self.disconnect()
+        QMessageBox.critical(self, "Connection Failed", error_message); self.reset_browser_ui()
+
     @Slot(str, bytes)
     def on_preview_ready(self, file_name, content):
         dialog = PreviewDialog(file_name, content, self); dialog.show()
+
     def get_selected_file_path(self):
         if self.tabs.currentWidget() != self.browser_tab: return None
         indexes = self.file_tree.selectionModel().selectedIndexes()
         if not indexes: return None
-        item_text = self.model.itemFromIndex(indexes[0]).text()
-        if self.is_in_search_mode: return item_text if item_text and "No matching files found." not in item_text else None
+        item = self.model.itemFromIndex(indexes[0])
+        item_text = item.text()
+        if self.is_in_search_mode:
+            # In search mode, the full path is the item text
+            return item_text if item_text and "No matching files found." not in item_text else None
         else:
-            if item_text.startswith("[DIR]") or item_text == "..": return None
+            # In browse mode, construct the path
+            item_data = item.data(Qt.UserRole)
+            if item_data != 'file': return None
             return f"{self.current_smb_path.rstrip('/')}/{item_text}" if self.current_smb_path != "/" else f"/{item_text}"
+
     @Slot()
     def on_selection_changed(self):
-        is_file = self.get_selected_file_path() is not None
+        path = self.get_selected_file_path()
+        is_file = path is not None
         self.preview_button.setEnabled(is_file); self.download_button.setEnabled(is_file)
+
     def browse_path(self, path):
-        self.is_in_search_mode = False; self.model.clear(); self.model.setHorizontalHeaderLabels(['Name'])
+        self.is_in_search_mode = False; self.model.clear(); self.model.setHorizontalHeaderLabels(['Name', 'Size'])
         self.current_smb_path = path; self.path_label.setText(f"Current Path: {self.smb_share.text()}{path}")
+        dir_icon = QApplication.style().standardIcon(QStyle.SP_DirIcon)
         try:
             files_and_dirs = self.browser_worker.browse_path(path)
-            if path != "/": self.model.appendRow(QStandardItem(".."))
-            for name in files_and_dirs: self.model.appendRow(QStandardItem(name))
-        except Exception as e: QMessageBox.warning(self, "Browse Error", f"Could not list path '{path}'.\n\n{e}")
+            if path != "/":
+                item = QStandardItem(dir_icon, ".."); item.setData("..", Qt.UserRole)
+                size_item = QStandardItem(""); size_item.setEditable(False)
+                self.model.appendRow([item, size_item])
+            for entry in files_and_dirs:
+                size_item = QStandardItem()
+                if entry['type'] == 'dir':
+                    icon = dir_icon
+                    size_item.setText("") # No size for directories
+                else:
+                    icon = self.get_icon_for_filename(entry['name'])
+                    size_str = self.format_file_size(entry['size'])
+                    size_item.setText(size_str)
+                    size_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                
+                size_item.setEditable(False)
+                item = QStandardItem(icon, entry['name']); item.setData(entry['type'], Qt.UserRole)
+                item.setEditable(False)
+                self.model.appendRow([item, size_item])
+        except Exception as e:
+             QMessageBox.warning(self, "Browsing Error", f"Could not list path '{path}'.\n\n{e}")
+        self.file_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.file_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+
+
     def on_item_double_clicked(self, index):
         if self.is_in_search_mode: self.start_preview(); return
         if not (self.browser_worker and self.browser_worker.smb_connection): return
-        item_text = self.model.itemFromIndex(index).text(); new_path = ""
-        if item_text == "..":
+        item = self.model.itemFromIndex(index); item_type = item.data(Qt.UserRole); item_text = item.text()
+        new_path = ""
+        if item_type == "..":
             if self.current_smb_path != "/":
                 parts = self.current_smb_path.strip('/').split('/'); new_path = "/" + "/".join(parts[:-1]) if len(parts) > 1 else "/"
-        elif item_text.startswith("[DIR]"):
-            dir_name = item_text[6:]; new_path = f"{self.current_smb_path.rstrip('/')}/{dir_name}" if self.current_smb_path != "/" else f"/{dir_name}"
-        else: return
+        elif item_type == "dir":
+            new_path = f"{self.current_smb_path.rstrip('/')}/{item_text}" if self.current_smb_path != "/" else f"/{item_text}"
+        else: self.start_preview(); return
         self.browse_path(new_path)
+
     def show_scanner_context_menu(self, pos: QPoint):
         index = self.scan_results_tree.indexAt(pos)
         if not index.isValid(): return
@@ -648,6 +735,7 @@ class SMBBrowserApp(QMainWindow):
         menu = QMenu(); open_action = menu.addAction("Open in Browser")
         action = menu.exec(self.scan_results_tree.mapToGlobal(pos))
         if action == open_action: self.open_share_in_browser()
+
     @Slot()
     def on_scanner_selection_changed(self):
         indexes = self.scan_results_tree.selectionModel().selectedIndexes()
@@ -656,6 +744,7 @@ class SMBBrowserApp(QMainWindow):
             item = self.scan_model.itemFromIndex(indexes[0])
             if item.parent(): is_share = True
         self.open_share_button.setEnabled(is_share)
+
     @Slot()
     def open_share_in_browser(self):
         indexes = self.scan_results_tree.selectionModel().selectedIndexes()
@@ -670,6 +759,7 @@ class SMBBrowserApp(QMainWindow):
             self.smb_user.setText(self.scan_user_input.text()); self.smb_pass.setText(self.scan_pass_input.text())
             self.tabs.setCurrentWidget(self.browser_tab)
             self.update_status(f"Loaded {host}/{share_name} into browser. Click Connect.")
+
     def closeEvent(self, event):
         self.disconnect()
         self.stop_scan()
