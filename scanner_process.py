@@ -28,7 +28,8 @@ def check_smb_host(host, user, password, quick_scan, use_proxy, proxy_port):
 
     conn = None
     try:
-        client_name = socket.gethostname()
+        # Use a unique client name for each connection attempt to avoid conflicts
+        client_name = f'pysmb-scan-{os.urandom(4).hex()}'
         conn = SMBConnection(user, password, client_name, host, use_ntlm_v2=True, is_direct_tcp=True)
         if not conn.connect(host, 445, timeout=5):
             return None
@@ -41,18 +42,23 @@ def check_smb_host(host, user, password, quick_scan, use_proxy, proxy_port):
                 if not quick_scan:
                     perms_list = []
                     try:
+                        # Check for READ access
                         conn.listPath(share.name, '/', timeout=5)
                         perms_list.append('READ')
                     except (Exception):
-                        pass
+                        pass # Can't read
                     try:
+                        # Check for WRITE access
                         temp_dir = f'temp_check_{os.urandom(4).hex()}'
                         conn.createDirectory(share.name, f'/{temp_dir}')
                         conn.deleteDirectory(share.name, f'/{temp_dir}')
                         perms_list.append('WRITE')
                     except (Exception):
-                        pass
-                    permissions = ", ".join(perms_list)
+                        pass # Can't write
+                    permissions = ", ".join(perms_list) if perms_list else "NO_ACCESS"
+                else:
+                    permissions = "N/A (Quick Scan)"
+
                 share_info.append({'name': share.name, 'permissions': permissions})
 
         if share_info:
@@ -120,15 +126,16 @@ def main():
 def port_check(host, use_proxy, proxy_port):
     """Dedicated port check function for the process."""
     try:
+        # Each thread needs its own proxy setting
         if use_proxy:
-            socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", proxy_port)
+            thread_socket = socks.socksocket()
+            thread_socket.set_proxy(socks.SOCKS5, "127.0.0.1", proxy_port)
         else:
-            socks.set_default_proxy(None)
-        socket.socket = socks.socksocket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(2.0)
-        s.connect((host, 445))
-        s.close()
+            thread_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        thread_socket.settimeout(2.0)
+        thread_socket.connect((host, 445))
+        thread_socket.close()
         return host
     except (Exception):
         return None
