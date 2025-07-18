@@ -20,10 +20,10 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPushButton, QTreeView, QHeaderView, QMessageBox,
     QStatusBar, QComboBox, QHBoxLayout, QDialog, QTextEdit, QFileDialog,
-    QScrollArea, QTabWidget, QMenu, QCheckBox, QStyle
+    QScrollArea, QTabWidget, QMenu, QCheckBox, QStyle, QGroupBox
 )
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QMetaObject, Qt, Q_ARG, QPoint, QProcess
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QPixmap, QFont
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QPixmap, QFont, QIntValidator
 
 # --- We now ONLY use the pysmb library for all SMB operations IN THE BROWSER ---
 from smb.SMBConnection import SMBConnection
@@ -39,70 +39,342 @@ smb_structs.socket = socks.socksocket
 smb_structs.SUPPORT_NTLMv2 = True
 smb_structs.SUPPORT_NTLMv1 = False
 
-# --- UI Stylesheet (Unchanged) ---
-DARK_STYLESHEET = """
+# --- NEW: Modern UI Stylesheets ---
+
+# Modern Dark theme with red accents
+MODERN_DARK_STYLESHEET = """
+    /* General */
     QWidget {
-        background-color: #2E2E2E;
-        color: #EAEAEA;
+        background-color: #2b2b2b;
+        color: #f0f0f0;
         font-size: 14px;
+        font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
     }
-    QTabWidget::pane { border: 1px solid #555; }
-    QTabBar::tab { 
-        background-color: #3C3C3C; 
-        padding: 10px; 
-        border-top-left-radius: 4px;
-        border-top-right-radius: 4px;
+
+    /* GroupBox */
+    QGroupBox {
+        font-weight: bold;
+        border: 1px solid #4a4a4a;
+        border-radius: 5px;
+        margin-top: 10px;
     }
-    QTabBar::tab:selected { background-color: #2E2E2E; }
-    QDialog, QScrollArea {
-        background-color: #2E2E2E;
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        subcontrol-position: top center;
+        padding: 0 10px;
     }
-    QMenu {
-        background-color: #3C3C3C;
-        border: 1px solid #555;
+
+    /* Main Window & Dialogs */
+    QMainWindow, QDialog, QScrollArea {
+        background-color: #2b2b2b;
     }
-    QMenu::item:selected {
-        background-color: #0078D7;
+
+    /* Labels & Status Bar */
+    QLabel, QStatusBar {
+        color: #cccccc;
     }
-    QCheckBox {
-        spacing: 5px;
-    }
-    QCheckBox::indicator {
-        width: 15px;
-        height: 15px;
-    }
-    QComboBox {
-        background-color: #3C3C3C;
-        border: 1px solid #555;
-        border-radius: 4px;
-        padding: 5px;
-    }
-    QComboBox::drop-down { border: none; }
-    QLineEdit, QTextEdit {
-        background-color: #3C3C3C;
-        border: 1px solid #555;
-        border-radius: 4px;
-        padding: 5px;
-    }
-    QPushButton {
-        background-color: #5C5C5C;
-        border: none;
-        border-radius: 4px;
-        padding: 8px 12px;
-    }
-    QPushButton:hover { background-color: #7C7C7C; }
-    QPushButton:disabled { background-color: #444; color: #888; }
+
+    /* TreeView */
     QTreeView {
-        background-color: #3C3C3C;
-        border: 1px solid #555;
-        border-radius: 4px;
+        background-color: #3c3f41;
+        border: 1px solid #4a4a4a;
+        border-radius: 5px;
+        alternate-background-color: #35383a;
+        padding: 5px;
+    }
+    QTreeView::item {
+        padding: 5px;
+        border-radius: 3px;
+    }
+    QTreeView::item:selected {
+        background-color: #E53935; /* Accent */
+        color: #ffffff;
     }
     QHeaderView::section {
-        background-color: #4A4A4A;
-        padding: 4px;
+        background-color: #45494c;
+        color: #f0f0f0;
+        padding: 6px;
+        border: none;
+        border-bottom: 1px solid #2b2b2b;
+    }
+
+    /* Tab Widgets */
+    QTabWidget::pane { 
+        border: 1px solid #4a4a4a; 
+        border-top: none;
+        border-radius: 0 0 5px 5px;
+    }
+    QTabBar::tab { 
+        background-color: #3c3f41; 
+        color: #cccccc;
+        padding: 10px 20px; 
+        border: 1px solid #4a4a4a;
+        border-bottom: none;
+        border-top-left-radius: 5px;
+        border-top-right-radius: 5px;
+    }
+    QTabBar::tab:selected { 
+        background-color: #45494c; 
+        color: #ffffff;
+        border-color: #4a4a4a;
+    }
+    QTabBar::tab:!selected:hover {
+        background-color: #414446;
+    }
+
+    /* Buttons */
+    QPushButton {
+        background-color: #555555;
+        color: #f0f0f0;
+        border: none;
+        border-radius: 5px;
+        padding: 8px 16px;
+    }
+    QPushButton:hover { 
+        background-color: #6a6a6a; 
+    }
+    QPushButton:pressed {
+        background-color: #757575;
+    }
+    QPushButton:disabled { 
+        background-color: #404040; 
+        color: #888888; 
+    }
+    
+    /* Primary Action Buttons */
+    QPushButton#PrimaryAction {
+        background-color: #E53935; /* Accent */
+        color: #ffffff;
+        font-weight: bold;
+    }
+    QPushButton#PrimaryAction:hover {
+        background-color: #C62828;
+    }
+    QPushButton#PrimaryAction:disabled {
+        background-color: #404040;
+        color: #888888;
+    }
+
+    /* Inputs */
+    QLineEdit, QTextEdit, QComboBox {
+        background-color: #3c3f41;
+        border: 1px solid #4a4a4a;
+        border-radius: 5px;
+        padding: 6px;
+    }
+    QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
+        border: 1px solid #E53935; /* Accent on focus */
+    }
+    QComboBox::drop-down { 
+        border: none;
+    }
+
+    /* Menu */
+    QMenu {
+        background-color: #3c3f41;
+        border: 1px solid #4a4a4a;
+    }
+    QMenu::item:selected {
+        background-color: #E53935; /* Accent */
+        color: #ffffff;
+    }
+
+    /* CheckBox */
+    QCheckBox::indicator {
+        width: 16px;
+        height: 16px;
         border: 1px solid #555;
+        border-radius: 3px;
+    }
+    QCheckBox::indicator:checked {
+        background-color: #E53935;
+        border-color: #C62828;
     }
 """
+
+# Modern Light theme with blue accents
+MODERN_LIGHT_STYLESHEET = """
+    /* General */
+    QWidget {
+        background-color: #f9f9f9;
+        color: #333333;
+        font-size: 14px;
+        font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+    }
+
+    /* GroupBox */
+    QGroupBox {
+        font-weight: bold;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        subcontrol-position: top center;
+        padding: 0 10px;
+    }
+
+    /* Main Window & Dialogs */
+    QMainWindow, QDialog, QScrollArea {
+        background-color: #f9f9f9;
+    }
+
+    /* Labels & Status Bar */
+    QLabel, QStatusBar {
+        color: #444444;
+    }
+
+    /* TreeView */
+    QTreeView {
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        alternate-background-color: #f5f5f5;
+        padding: 5px;
+    }
+    QTreeView::item {
+        padding: 5px;
+        border-radius: 3px;
+    }
+    QTreeView::item:selected {
+        background-color: #1E88E5; /* Accent */
+        color: #ffffff;
+    }
+    QHeaderView::section {
+        background-color: #f0f0f0;
+        color: #333333;
+        padding: 6px;
+        border: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    /* Tab Widgets */
+    QTabWidget::pane { 
+        border: 1px solid #e0e0e0; 
+        border-top: none;
+        border-radius: 0 0 5px 5px;
+    }
+    QTabBar::tab { 
+        background-color: #f0f0f0; 
+        color: #555555;
+        padding: 10px 20px; 
+        border: 1px solid #e0e0e0;
+        border-bottom: none;
+        border-top-left-radius: 5px;
+        border-top-right-radius: 5px;
+    }
+    QTabBar::tab:selected { 
+        background-color: #ffffff; 
+        color: #333333;
+        border-color: #e0e0e0;
+    }
+    QTabBar::tab:!selected:hover {
+        background-color: #e7e7e7;
+    }
+
+    /* Buttons */
+    QPushButton {
+        background-color: #e0e0e0;
+        color: #333333;
+        border: none;
+        border-radius: 5px;
+        padding: 8px 16px;
+    }
+    QPushButton:hover { 
+        background-color: #dcdcdc; 
+    }
+    QPushButton:pressed {
+        background-color: #d0d0d0;
+    }
+    QPushButton:disabled { 
+        background-color: #eeeeee; 
+        color: #aaaaaa; 
+    }
+
+    /* Primary Action Buttons */
+    QPushButton#PrimaryAction {
+        background-color: #1E88E5; /* Accent */
+        color: #ffffff;
+        font-weight: bold;
+    }
+    QPushButton#PrimaryAction:hover {
+        background-color: #1976D2;
+    }
+    QPushButton#PrimaryAction:disabled {
+        background-color: #eeeeee;
+        color: #aaaaaa;
+    }
+
+    /* Inputs */
+    QLineEdit, QTextEdit, QComboBox {
+        background-color: #ffffff;
+        border: 1px solid #dcdcdc;
+        border-radius: 5px;
+        padding: 6px;
+    }
+    QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
+        border: 1px solid #1E88E5; /* Accent on focus */
+    }
+    QComboBox::drop-down { 
+        border: none;
+    }
+
+    /* Menu */
+    QMenu {
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+    }
+    QMenu::item:selected {
+        background-color: #1E88E5; /* Accent */
+        color: #ffffff;
+    }
+
+    /* CheckBox */
+    QCheckBox::indicator {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #cccccc;
+        border-radius: 3px;
+    }
+    QCheckBox::indicator:checked {
+        background-color: #1E88E5;
+        border-color: #1565C0;
+    }
+"""
+
+class ProxyDialog(QDialog):
+    """A dialog for adding or editing a SOCKS proxy entry."""
+    def __init__(self, parent=None, name="", port=""):
+        super().__init__(parent)
+        self.setWindowTitle("Proxy Configuration")
+        self.layout = QGridLayout(self)
+        
+        self.layout.addWidget(QLabel("Proxy Name:"), 0, 0)
+        self.name_input = QLineEdit(name)
+        self.layout.addWidget(self.name_input, 0, 1)
+
+        self.layout.addWidget(QLabel("Port:"), 1, 0)
+        self.port_input = QLineEdit(str(port))
+        self.port_input.setValidator(QIntValidator(1, 65535, self))
+        self.layout.addWidget(self.port_input, 1, 1)
+
+        self.button_box = QHBoxLayout()
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        self.button_box.addStretch()
+        self.button_box.addWidget(self.ok_button)
+        self.button_box.addWidget(self.cancel_button)
+
+        self.layout.addLayout(self.button_box, 2, 0, 1, 2)
+
+    def get_data(self):
+        """Returns the entered data if the dialog is accepted."""
+        if self.name_input.text() and self.port_input.text():
+            return self.name_input.text().strip(), int(self.port_input.text())
+        return None, None
 
 class ImageLabel(QLabel):
     def __init__(self, pixmap: QPixmap, parent=None):
@@ -239,6 +511,7 @@ class BrowserWorker(QObject):
         self.smb_connection = None
         self._is_running = True
         self.is_cached = False
+        self.is_caching = False # Flag to prevent concurrent caching
         self.file_path_cache = []
         
     @Slot()
@@ -258,17 +531,41 @@ class BrowserWorker(QObject):
             self.connection_success.emit(self.browse_path("/"))
         except Exception as e:
             if self._is_running: self.connection_failed.emit(str(e))
+
+    @Slot()
+    def start_background_caching(self):
+        """Starts the file indexing process in the background."""
+        if not self.smb_connection or self.is_cached or self.is_caching or not self._is_running:
+            return
+        try:
+            self.is_caching = True
+            self.status_update.emit("Starting background file indexing...")
+            self.file_path_cache = []  # Clear previous cache
+            self._build_cache_parallel()
+            self.is_cached = True
+            self.status_update.emit("Background file indexing is complete. Search is now available.")
+        except Exception as e:
+            self.status_update.emit(f"Error during background caching: {e}")
+        finally:
+            self.is_caching = False # Ensure this is always reset
     
     @Slot(str)
     def do_search(self, keyword):
         if not self.smb_connection: return
+
+        if self.is_caching:
+            self.status_update.emit("File indexing is in progress. Please wait a moment before searching.")
+            self.search_finished.emit([]) # Return an empty result to avoid user confusion
+            return
+            
         try:
             if not self.is_cached:
+                self.is_caching = True
                 self.status_update.emit("First search: building file index... This may take a moment.")
-                # The cache will now store tuples of (full_path, file_size)
                 self.file_path_cache = []
                 self._build_cache_parallel()
                 self.is_cached = True
+                self.is_caching = False
 
             self.status_update.emit(f"Searching for '{keyword}' in cache...")
             # Search results will now be a list of tuples (path, size)
@@ -278,6 +575,10 @@ class BrowserWorker(QObject):
         except Exception as e:
             self.status_update.emit(f"Error during search: {e}")
             self.search_finished.emit([])
+        finally:
+            # Ensure reset in case of an error during the initial search caching
+            if self.is_caching:
+                self.is_caching = False
 
     def _build_cache_parallel(self):
         dirs_to_scan = ['/']
@@ -360,43 +661,82 @@ class SMBBrowserApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("SMB over SOCKS Proxy Browser")
         self.setGeometry(100, 100, 900, 700)
-        self.proxies = {}
-        self.load_proxy_config()
+        self.config = {}
+        self.load_config()
         self.browser_worker_thread = None; self.browser_worker = None
         self.scanner_process = None
         self.scanner_buffer = ""
         self.current_smb_path = "/"; self.is_in_search_mode = False
         self.create_widgets()
+        self.apply_theme(self.config.get('theme', 'dark'))
 
-    def load_proxy_config(self):
-        config_file = "config.json"
-        default_proxies = {"example1": 1337, "example2": 1338, "example3": 1339}
-        if os.path.exists(config_file):
+
+    def load_config(self):
+        self.config_file = "config.json"
+        default_config = {
+            "proxies": {"example1": 1337, "example2": 1338, "example3": 1339},
+            "theme": "dark",
+            "auto_index": True
+        }
+        if os.path.exists(self.config_file):
             try:
-                with open(config_file, 'r') as f: self.proxies = json.load(f)
+                with open(self.config_file, 'r') as f:
+                    loaded_config = json.load(f)
+
+                # Migration logic for old config format
+                if "proxies" not in loaded_config and "theme" not in loaded_config and loaded_config:
+                    self.config = { "proxies": loaded_config, "theme": "dark", "auto_index": True }
+                    self.save_config()
+                else:
+                    self.config = loaded_config
+                
+                # Ensure all default keys are present
+                for key, value in default_config.items():
+                    if key not in self.config:
+                        self.config[key] = value
+
             except (json.JSONDecodeError, IOError) as e:
-                QMessageBox.warning(self, "Config Error", f"Could not load '{config_file}':\n{e}\n\nFalling back to default settings.")
-                self.proxies = default_proxies
+                QMessageBox.warning(self, "Config Error", f"Could not load '{self.config_file}':\n{e}\n\nFalling back to default settings.")
+                self.config = default_config
+                self.save_config()
         else:
-            try:
-                self.proxies = default_proxies
-                with open(config_file, 'w') as f: json.dump(self.proxies, f, indent=4)
-            except IOError as e: QMessageBox.critical(self, "Config Error", f"Could not create default config file '{config_file}':\n{e}")
+            self.config = default_config
+            self.save_config()
+
+    def save_config(self):
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(self.config, f, indent=4)
+        except IOError as e:
+            print(f"Could not save config file '{self.config_file}':\n{e}")
 
     def create_widgets(self):
         central_widget = QWidget(); self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget); self.tabs = QTabWidget()
-        main_layout.addWidget(self.tabs); self.browser_tab = QWidget()
-        self.scanner_tab = QWidget(); self.tabs.addTab(self.browser_tab, "Share Browser")
-        self.tabs.addTab(self.scanner_tab, "Subnet Scanner"); self.create_browser_tab()
-        self.create_scanner_tab(); self.setStatusBar(QStatusBar(self))
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+
+        main_layout.addWidget(self.tabs)
+        self.browser_tab = QWidget()
+        self.scanner_tab = QWidget()
+        self.settings_tab = QWidget()
+        self.tabs.addTab(self.browser_tab, "Share Browser")
+        self.tabs.addTab(self.scanner_tab, "Subnet Scanner")
+        self.tabs.addTab(self.settings_tab, "Settings")
+
+        self.create_browser_tab()
+        self.create_scanner_tab()
+        self.create_settings_tab() # New settings tab
+
+        self.setStatusBar(QStatusBar(self))
         self.statusBar().showMessage("Status: Disconnected")
 
     def create_browser_tab(self):
         layout = QVBoxLayout(self.browser_tab); grid_layout = QGridLayout()
+        layout.setSpacing(10)
+        grid_layout.setSpacing(10)
+        
         grid_layout.addWidget(QLabel("SOCKS Proxy:"), 0, 0); self.proxy_selector = QComboBox()
-        self.proxy_selector.addItem("None (Direct Scan)")
-        if self.proxies: self.proxy_selector.addItems(self.proxies.keys())
         grid_layout.addWidget(self.proxy_selector, 0, 1, 1, 3)
         grid_layout.addWidget(QLabel("Remote SMB Host:"), 1, 0); self.smb_host = QLineEdit("192.168.1.100")
         grid_layout.addWidget(self.smb_host, 1, 1); grid_layout.addWidget(QLabel("SMB Share Name:"), 1, 2)
@@ -405,38 +745,48 @@ class SMBBrowserApp(QMainWindow):
         grid_layout.addWidget(self.smb_user, 2, 1); grid_layout.addWidget(QLabel("SMB Password:"), 2, 2)
         self.smb_pass = QLineEdit(""); self.smb_pass.setEchoMode(QLineEdit.Password)
         grid_layout.addWidget(self.smb_pass, 2, 3); layout.addLayout(grid_layout)
+
         search_layout = QHBoxLayout(); self.search_input = QLineEdit()
+        search_layout.setSpacing(10)
         self.search_input.setPlaceholderText("Enter keyword to search for files in the current share (builds cache on first run)..."); self.search_button = QPushButton("Search")
         self.cancel_search_button = QPushButton("Cancel Search"); self.clear_search_button = QPushButton("Clear Search")
         search_layout.addWidget(self.search_input); search_layout.addWidget(self.search_button)
         search_layout.addWidget(self.cancel_search_button); search_layout.addWidget(self.clear_search_button)
         layout.addLayout(search_layout); action_layout = QHBoxLayout()
-        self.connect_button = QPushButton("Connect"); self.disconnect_button = QPushButton("Disconnect")
+        action_layout.setSpacing(10)
+
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.setObjectName("PrimaryAction")
+        self.disconnect_button = QPushButton("Disconnect")
         self.disconnect_button.setEnabled(False); self.preview_button = QPushButton("Preview")
         self.preview_button.setEnabled(False); self.download_button = QPushButton("Download")
         self.download_button.setEnabled(False); action_layout.addWidget(self.connect_button)
         action_layout.addWidget(self.disconnect_button); action_layout.addStretch()
         action_layout.addWidget(self.preview_button); action_layout.addWidget(self.download_button)
         layout.addLayout(action_layout)
+
         self.search_button.clicked.connect(self.start_search)
         self.cancel_search_button.clicked.connect(self.stop_search); self.clear_search_button.clicked.connect(self.clear_search)
         self.search_button.setEnabled(False); self.cancel_search_button.setVisible(False); self.clear_search_button.setEnabled(False)
         self.path_label = QLabel("Current Path: /"); layout.addWidget(self.path_label)
         self.file_tree = QTreeView()
+        self.file_tree.setAlternatingRowColors(True)
         self.file_tree.doubleClicked.connect(self.on_item_double_clicked); layout.addWidget(self.file_tree)
         self.model = QStandardItemModel(); self.model.setHorizontalHeaderLabels(['Name', 'Size'])
         self.file_tree.setModel(self.model); self.file_tree.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.connect_button.clicked.connect(self.start_connection); self.disconnect_button.clicked.connect(self.disconnect)
         self.preview_button.clicked.connect(self.start_preview); self.download_button.clicked.connect(self.start_download)
-        # Set initial column resize properties
+        
         self.file_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.file_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
     def create_scanner_tab(self):
-        layout = QVBoxLayout(self.scanner_tab); grid = QGridLayout()
+        layout = QVBoxLayout(self.scanner_tab)
+        layout.setSpacing(10)
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        
         grid.addWidget(QLabel("SOCKS Proxy:"), 0, 0); self.scan_proxy_selector = QComboBox()
-        self.scan_proxy_selector.addItem("None (Direct Scan)")
-        if self.proxies: self.scan_proxy_selector.addItems(self.proxies.keys())
         grid.addWidget(self.scan_proxy_selector, 0, 1)
         grid.addWidget(QLabel("Subnet (CIDR):"), 1, 0); self.scan_subnet_input = QLineEdit("192.168.1.0/24")
         grid.addWidget(self.scan_subnet_input, 1, 1); grid.addWidget(QLabel("Username:"), 2, 0)
@@ -445,7 +795,11 @@ class SMBBrowserApp(QMainWindow):
         self.scan_pass_input.setEchoMode(QLineEdit.Password); grid.addWidget(self.scan_pass_input, 3, 1)
         layout.addLayout(grid); self.quick_scan_checkbox = QCheckBox("Quick Scan (Skips slow permission checks, may be inconsistent)")
         self.quick_scan_checkbox.setChecked(True); layout.addWidget(self.quick_scan_checkbox)
-        scan_action_layout = QHBoxLayout(); self.start_scan_button = QPushButton("Start Scan")
+        
+        scan_action_layout = QHBoxLayout()
+        scan_action_layout.setSpacing(10)
+        self.start_scan_button = QPushButton("Start Scan")
+        self.start_scan_button.setObjectName("PrimaryAction")
         self.cancel_scan_button = QPushButton("Cancel Scan"); self.open_share_button = QPushButton("Open in Browser")
         self.cancel_scan_button.setVisible(False); self.open_share_button.setEnabled(False)
         scan_action_layout.addWidget(self.start_scan_button); scan_action_layout.addWidget(self.cancel_scan_button)
@@ -459,42 +813,194 @@ class SMBBrowserApp(QMainWindow):
         self.start_scan_button.clicked.connect(self.start_scan); self.cancel_scan_button.clicked.connect(self.stop_scan)
         self.open_share_button.clicked.connect(self.open_share_in_browser)
         self.scan_results_tree.selectionModel().selectionChanged.connect(self.on_scanner_selection_changed)
+        
+        # Populate proxy selectors now that all tabs are created
+        self.update_proxy_selectors()
+        
+    def create_settings_tab(self):
+        layout = QVBoxLayout(self.settings_tab)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
 
-    # --- Helper method to get an icon based on filename extension ---
+        # --- Proxy Management ---
+        proxy_group = QGroupBox("Proxy Management")
+        proxy_layout = QVBoxLayout()
+        
+        self.proxy_settings_model = QStandardItemModel()
+        self.proxy_settings_model.setHorizontalHeaderLabels(["Name", "Port"])
+        self.proxy_settings_tree = QTreeView()
+        self.proxy_settings_tree.setModel(self.proxy_settings_model)
+        self.proxy_settings_tree.setAlternatingRowColors(True)
+        self.proxy_settings_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        proxy_layout.addWidget(self.proxy_settings_tree)
+
+        proxy_buttons = QHBoxLayout()
+        add_proxy_btn = QPushButton("Add")
+        edit_proxy_btn = QPushButton("Edit")
+        remove_proxy_btn = QPushButton("Remove")
+        proxy_buttons.addStretch()
+        proxy_buttons.addWidget(add_proxy_btn)
+        proxy_buttons.addWidget(edit_proxy_btn)
+        proxy_buttons.addWidget(remove_proxy_btn)
+        proxy_layout.addLayout(proxy_buttons)
+        
+        proxy_group.setLayout(proxy_layout)
+        layout.addWidget(proxy_group)
+
+        # --- Appearance Settings ---
+        appearance_group = QGroupBox("Appearance")
+        appearance_layout = QGridLayout()
+        appearance_layout.addWidget(QLabel("Theme:"), 0, 0)
+        self.theme_selector = QComboBox()
+        self.theme_selector.addItems(["Dark", "Light"])
+        self.theme_selector.setCurrentText(self.config.get('theme', 'dark').capitalize())
+        appearance_layout.addWidget(self.theme_selector, 0, 1)
+        appearance_group.setLayout(appearance_layout)
+        layout.addWidget(appearance_group)
+
+        # --- Behavior Settings ---
+        behavior_group = QGroupBox("Behavior")
+        behavior_layout = QVBoxLayout()
+        self.auto_index_checkbox = QCheckBox("Automatically index share contents on connect")
+        self.auto_index_checkbox.setChecked(self.config.get('auto_index', True))
+        behavior_layout.addWidget(self.auto_index_checkbox)
+        behavior_group.setLayout(behavior_layout)
+        layout.addWidget(behavior_group)
+
+        layout.addStretch() # Push all settings to the top
+
+        # --- Connect signals ---
+        add_proxy_btn.clicked.connect(self.add_proxy)
+        edit_proxy_btn.clicked.connect(self.edit_proxy)
+        remove_proxy_btn.clicked.connect(self.remove_proxy)
+        self.theme_selector.currentTextChanged.connect(self.update_theme_setting)
+        self.auto_index_checkbox.toggled.connect(self.update_auto_index_setting)
+        
+        # Populate proxy list
+        self.populate_proxy_settings_list()
+
+    def populate_proxy_settings_list(self):
+        """Refreshes the list of proxies in the settings tab."""
+        self.proxy_settings_model.clear()
+        self.proxy_settings_model.setHorizontalHeaderLabels(["Name", "Port"])
+        proxies = self.config.get('proxies', {})
+        for name, port in sorted(proxies.items()):
+            name_item = QStandardItem(name)
+            port_item = QStandardItem(str(port))
+            self.proxy_settings_model.appendRow([name_item, port_item])
+
+    def update_proxy_selectors(self):
+        """Updates the proxy dropdowns in the browser and scanner tabs."""
+        # Store current selections
+        current_browser_proxy = self.proxy_selector.currentText()
+        current_scanner_proxy = self.scan_proxy_selector.currentText()
+
+        # Clear and repopulate
+        self.proxy_selector.clear()
+        self.scan_proxy_selector.clear()
+        self.proxy_selector.addItem("None (Direct Scan)")
+        self.scan_proxy_selector.addItem("None (Direct Scan)")
+        
+        proxy_names = sorted(self.config.get('proxies', {}).keys())
+        self.proxy_selector.addItems(proxy_names)
+        self.scan_proxy_selector.addItems(proxy_names)
+
+        # Restore selections if they still exist
+        if self.proxy_selector.findText(current_browser_proxy) != -1:
+            self.proxy_selector.setCurrentText(current_browser_proxy)
+        if self.scan_proxy_selector.findText(current_scanner_proxy) != -1:
+            self.scan_proxy_selector.setCurrentText(current_scanner_proxy)
+
+    @Slot()
+    def add_proxy(self):
+        dialog = ProxyDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            name, port = dialog.get_data()
+            if name and port:
+                if name in self.config['proxies']:
+                    QMessageBox.warning(self, "Error", f"A proxy with the name '{name}' already exists.")
+                    return
+                self.config['proxies'][name] = port
+                self.populate_proxy_settings_list()
+                self.update_proxy_selectors()
+
+    @Slot()
+    def edit_proxy(self):
+        indexes = self.proxy_settings_tree.selectionModel().selectedIndexes()
+        if not indexes:
+            QMessageBox.information(self, "Edit Proxy", "Please select a proxy to edit.")
+            return
+        
+        row = indexes[0].row()
+        old_name = self.proxy_settings_model.item(row, 0).text()
+        old_port = self.proxy_settings_model.item(row, 1).text()
+
+        dialog = ProxyDialog(self, name=old_name, port=old_port)
+        if dialog.exec() == QDialog.Accepted:
+            new_name, new_port = dialog.get_data()
+            if new_name and new_port:
+                # Remove old entry
+                del self.config['proxies'][old_name]
+                # Add new entry
+                self.config['proxies'][new_name] = new_port
+                self.populate_proxy_settings_list()
+                self.update_proxy_selectors()
+    
+    @Slot()
+    def remove_proxy(self):
+        indexes = self.proxy_settings_tree.selectionModel().selectedIndexes()
+        if not indexes:
+            QMessageBox.information(self, "Remove Proxy", "Please select a proxy to remove.")
+            return
+
+        row = indexes[0].row()
+        name_to_remove = self.proxy_settings_model.item(row, 0).text()
+
+        reply = QMessageBox.question(self, "Confirm Removal", f"Are you sure you want to remove the proxy '{name_to_remove}'?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if name_to_remove in self.config['proxies']:
+                del self.config['proxies'][name_to_remove]
+                self.populate_proxy_settings_list()
+                self.update_proxy_selectors()
+
+    @Slot(str)
+    def update_theme_setting(self, theme_text):
+        theme = theme_text.lower()
+        self.apply_theme(theme)
+
+    @Slot(bool)
+    def update_auto_index_setting(self, checked):
+        self.config['auto_index'] = checked
+    
+    def apply_theme(self, theme_name):
+        app = QApplication.instance()
+        if theme_name == 'light':
+            app.setStyleSheet(MODERN_LIGHT_STYLESHEET)
+        else: # Default to dark
+            app.setStyleSheet(MODERN_DARK_STYLESHEET)
+        self.config['theme'] = theme_name
+        # Update selector in settings if it exists
+        if hasattr(self, 'theme_selector'):
+            self.theme_selector.setCurrentText(theme_name.capitalize())
+
     def get_icon_for_filename(self, filename):
         style = QApplication.style()
         extension = os.path.splitext(filename)[1].lower()
         
-        # A simple map of extensions to icons
         icon_map = {
-            # Archives
-            '.zip': QStyle.SP_DriveHDIcon,
-            '.rar': QStyle.SP_DriveHDIcon,
-            '.7z': QStyle.SP_DriveHDIcon,
-            '.tar': QStyle.SP_DriveHDIcon,
-            '.gz': QStyle.SP_DriveHDIcon,
-            # Images
-            '.png': QStyle.SP_FileDialogDetailedView,
-            '.jpg': QStyle.SP_FileDialogDetailedView,
-            '.jpeg': QStyle.SP_FileDialogDetailedView,
-            '.gif': QStyle.SP_FileDialogDetailedView,
-            '.bmp': QStyle.SP_FileDialogDetailedView,
-            # Database Files
-            '.db': QStyle.SP_DriveHDIcon,
-            '.sqlite': QStyle.SP_DriveHDIcon,
-            '.sqlite3': QStyle.SP_DriveHDIcon,
-            '.mdb': QStyle.SP_DriveHDIcon,
-            '.accdb': QStyle.SP_DriveHDIcon,
+            '.zip': QStyle.SP_DriveHDIcon, '.rar': QStyle.SP_DriveHDIcon, '.7z': QStyle.SP_DriveHDIcon,
+            '.tar': QStyle.SP_DriveHDIcon, '.gz': QStyle.SP_DriveHDIcon,
+            '.png': QStyle.SP_FileDialogDetailedView, '.jpg': QStyle.SP_FileDialogDetailedView, '.jpeg': QStyle.SP_FileDialogDetailedView,
+            '.gif': QStyle.SP_FileDialogDetailedView, '.bmp': QStyle.SP_FileDialogDetailedView,
+            '.db': QStyle.SP_DriveHDIcon, '.sqlite': QStyle.SP_DriveHDIcon, '.sqlite3': QStyle.SP_DriveHDIcon,
+            '.mdb': QStyle.SP_DriveHDIcon, '.accdb': QStyle.SP_DriveHDIcon,
         }
         
-        icon_enum = icon_map.get(extension, QStyle.SP_FileIcon) # Default to a generic file icon
+        icon_enum = icon_map.get(extension, QStyle.SP_FileIcon)
         return style.standardIcon(icon_enum)
 
-    # --- UPDATED: Helper method to format file sizes for display (more compact) ---
     def format_file_size(self, size_bytes):
-        if size_bytes is None or not isinstance(size_bytes, (int, float)) or size_bytes < 0:
-            return ""
-        if size_bytes == 0:
+        if size_bytes is None or not isinstance(size_bytes, (int, float)) or size_bytes <= 0:
             return "" # Show nothing for 0 bytes or directories
         power = 1024
         n = 0
@@ -512,8 +1018,9 @@ class SMBBrowserApp(QMainWindow):
         config = {'smb_host': self.smb_host.text(), 'smb_share': self.smb_share.text(), 'smb_user': self.smb_user.text(), 'smb_pass': self.smb_pass.text()}
         if proxy_selection == "None (Direct Scan)": config['use_proxy'] = False
         else:
-            if not proxy_selection: QMessageBox.warning(self, "Connection Error", "No SOCKS proxy selected."); return
-            config['use_proxy'] = True; config['proxy_host'] = '127.0.0.1'; config['proxy_port'] = self.proxies[proxy_selection]
+            if not proxy_selection or proxy_selection not in self.config['proxies']:
+                 QMessageBox.warning(self, "Connection Error", f"Proxy '{proxy_selection}' not found in settings."); return
+            config['use_proxy'] = True; config['proxy_host'] = '127.0.0.1'; config['proxy_port'] = self.config['proxies'][proxy_selection]
         self.connect_button.setEnabled(False); self.proxy_selector.setEnabled(False)
         self.browser_worker_thread = QThread(); self.browser_worker = BrowserWorker(config)
         self.browser_worker.moveToThread(self.browser_worker_thread); self.browser_worker.status_update.connect(self.update_status)
@@ -542,7 +1049,11 @@ class SMBBrowserApp(QMainWindow):
     @Slot(list)
     def on_search_finished(self, results):
         self.model.clear(); self.model.setHorizontalHeaderLabels(['Search Result (Full Path)', 'Size'])
-        if not results: self.model.appendRow(QStandardItem("No matching files found."))
+        if not results and self.browser_worker and self.browser_worker.is_caching:
+            # Don't show "no results" if the message is just because caching is in progress
+            return
+        if not results:
+             self.model.appendRow(QStandardItem("No matching files found."))
         else:
             for path, size in results:
                 icon = self.get_icon_for_filename(path)
@@ -564,7 +1075,6 @@ class SMBBrowserApp(QMainWindow):
     def start_scan(self):
         if self.scanner_process and self.scanner_process.state() == QProcess.Running: return
         proxy_selection = self.scan_proxy_selector.currentText()
-        # No proxy selection check here, handled by scanner process
         self.start_scan_button.setEnabled(False); self.cancel_scan_button.setEnabled(True)
         self.scan_model.setRowCount(0); self.update_status("Starting scanner process...")
         self.scanner_buffer = ""
@@ -575,7 +1085,12 @@ class SMBBrowserApp(QMainWindow):
         self.scanner_process.errorOccurred.connect(self.on_scanner_process_error)
         args = ["--subnet", self.scan_subnet_input.text(), "--user", self.scan_user_input.text(), "--password", self.scan_pass_input.text()]
         if proxy_selection == "None (Direct Scan)": args.append("--no-proxy")
-        else: args.extend(["--proxy-port", str(self.proxies[proxy_selection])])
+        else: 
+            if not proxy_selection or proxy_selection not in self.config['proxies']:
+                QMessageBox.warning(self, "Scanner Error", f"Proxy '{proxy_selection}' not found in settings.");
+                self.start_scan_button.setEnabled(True); self.cancel_scan_button.setEnabled(False)
+                return
+            args.extend(["--proxy-port", str(self.config['proxies'][proxy_selection])])
         if self.quick_scan_checkbox.isChecked(): args.append("--quick-scan")
         python_executable = sys.executable
         script_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "scanner_process.py")
@@ -651,8 +1166,15 @@ class SMBBrowserApp(QMainWindow):
 
     @Slot(list)
     def on_connection_success(self, file_list):
-        self.update_status("Connected successfully!"); self.disconnect_button.setEnabled(True)
-        self.search_button.setEnabled(True); self.clear_search_button.setEnabled(False); self.browse_path('/')
+        self.update_status("Connected successfully!")
+        self.disconnect_button.setEnabled(True)
+        self.search_button.setEnabled(True)
+        self.clear_search_button.setEnabled(False)
+        self.browse_path('/')
+
+        # --- MODIFIED: Automatically start caching if enabled in settings ---
+        if self.browser_worker and self.config.get('auto_index', True):
+            QMetaObject.invokeMethod(self.browser_worker, 'start_background_caching', Qt.QueuedConnection)
 
     @Slot(str)
     def on_connection_failed(self, error_message):
@@ -669,10 +1191,8 @@ class SMBBrowserApp(QMainWindow):
         item = self.model.itemFromIndex(indexes[0])
         item_text = item.text()
         if self.is_in_search_mode:
-            # In search mode, the full path is the item text
             return item_text if item_text and "No matching files found." not in item_text else None
         else:
-            # In browse mode, construct the path
             item_data = item.data(Qt.UserRole)
             if item_data != 'file': return None
             return f"{self.current_smb_path.rstrip('/')}/{item_text}" if self.current_smb_path != "/" else f"/{item_text}"
@@ -697,7 +1217,7 @@ class SMBBrowserApp(QMainWindow):
                 size_item = QStandardItem()
                 if entry['type'] == 'dir':
                     icon = dir_icon
-                    size_item.setText("") # No size for directories
+                    size_item.setText("")
                 else:
                     icon = self.get_icon_for_filename(entry['name'])
                     size_str = self.format_file_size(entry['size'])
@@ -709,7 +1229,7 @@ class SMBBrowserApp(QMainWindow):
                 item.setEditable(False)
                 self.model.appendRow([item, size_item])
         except Exception as e:
-             QMessageBox.warning(self, "Browsing Error", f"Could not list path '{path}'.\n\n{e}")
+           QMessageBox.warning(self, "Browse Error", f"Could not list path '{path}'.\n\n{e}")
         self.file_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.file_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
@@ -761,13 +1281,13 @@ class SMBBrowserApp(QMainWindow):
             self.update_status(f"Loaded {host}/{share_name} into browser. Click Connect.")
 
     def closeEvent(self, event):
+        self.save_config()
         self.disconnect()
         self.stop_scan()
         event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setStyleSheet(DARK_STYLESHEET)
     window = SMBBrowserApp()
     window.show()
     sys.exit(app.exec())
